@@ -1,5 +1,7 @@
 from shortGPT.config.path_utils import get_program_path
 import os
+from urllib.parse import urlparse
+import requests
 magick_path = get_program_path("magick")
 if magick_path:
     os.environ['IMAGEMAGICK_BINARY'] = magick_path
@@ -62,6 +64,7 @@ class CoreEditingEngine:
                 raise ValueError(f'Invalid asset type: {asset_type}')
 
             visual_clips.append(clip)
+        print("=======visual_assets finlish======")
         
         audio_clips = []
 
@@ -190,6 +193,17 @@ class CoreEditingEngine:
 
         return clip
 
+    def generate_video_by_url(self, video_url):
+        parsed_url = urlparse(video_url)
+        path = parsed_url.path
+        video_path = path.split('/')[-1]
+        response = requests.get(video_url)
+        with open(video_path, 'wb') as file:
+            file.write(response.content)
+        print(f"==========generate_video: {video_path}=============")
+        os.remove(video_path)
+        return video_path
+
     # Process individual asset types
     def process_video_asset(self, asset: Dict[str, Any]) -> VideoFileClip:
         params = {
@@ -197,6 +211,9 @@ class CoreEditingEngine:
         }
         if 'audio' in asset['parameters']:
             params['audio'] = asset['parameters']['audio']
+        params['filename'] = self.generate_video_by_url(params['filename'])
+        print("qqqqqqqqqqqqqqqqqqqqqqqq")
+        print(params)
         clip = VideoFileClip(**params)
         return self.process_common_visual_actions(clip, asset['actions'])
 
@@ -247,5 +264,3 @@ class CoreEditingEngine:
             return normalized_frame
         else:
             return frame
-        
-
