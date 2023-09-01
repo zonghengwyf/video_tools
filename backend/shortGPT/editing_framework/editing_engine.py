@@ -17,6 +17,7 @@ def update_dict(d, u):
 class EditingStep(Enum):
     CROP_1920x1080 = "crop_1920x1080_to_short.json"
     ADD_CAPTION_SHORT = "make_caption.json"
+    ADD_CAPTION_SHORT_CHINESE = "make_caption_chinese.json"
     ADD_CAPTION_SHORT_ARABIC = "make_caption_arabic.json"
     ADD_CAPTION_LANDSCAPE = "make_caption_landscape.json"
     ADD_CAPTION_LANDSCAPE_ARABIC = "make_caption_arabic_landscape.json"

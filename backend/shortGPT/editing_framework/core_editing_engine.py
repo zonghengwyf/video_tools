@@ -13,6 +13,7 @@ from moviepy.editor import (AudioFileClip, CompositeVideoClip,CompositeAudioClip
                             TextClip, VideoFileClip, vfx,)
 from moviepy.audio.fx.audio_loop import audio_loop
 from moviepy.audio.fx.audio_normalize import audio_normalize
+from moviepy.video.tools.subtitles import SubtitlesClip
 from shortGPT.editing_framework.rendering_logger import MoviepyProgressLogger
 
 def load_schema(json_path):
@@ -60,6 +61,8 @@ class CoreEditingEngine:
                     continue
             elif asset_type == 'text':
                 clip = self.process_text_asset(asset)
+            elif asset_type.startswith('captions_'):
+                clip = self.process_captions_asset(asset) 
             else:
                 raise ValueError(f'Invalid asset type: {asset_type}')
 
@@ -200,8 +203,6 @@ class CoreEditingEngine:
         response = requests.get(video_url)
         with open(video_path, 'wb') as file:
             file.write(response.content)
-        print(f"==========generate_video: {video_path}=============")
-        os.remove(video_path)
         return video_path
 
     # Process individual asset types
@@ -212,9 +213,9 @@ class CoreEditingEngine:
         if 'audio' in asset['parameters']:
             params['audio'] = asset['parameters']['audio']
         params['filename'] = self.generate_video_by_url(params['filename'])
-        print("qqqqqqqqqqqqqqqqqqqqqqqq")
-        print(params)
         clip = VideoFileClip(**params)
+        print(f"==========generate_video: {params['filename']}, audio: {params['audio']}===========")
+        os.remove(params['filename'])
         return self.process_common_visual_actions(clip, asset['actions'])
 
     def process_image_asset(self, asset: Dict[str, Any]) -> ImageClip:
@@ -223,19 +224,51 @@ class CoreEditingEngine:
 
     def process_text_asset(self, asset: Dict[str, Any]) -> TextClip:
         text_clip_params = asset['parameters']
-        
+
         if not (any(key in text_clip_params for key in ['text','fontsize', 'size'])):
             raise Exception('You must include at least a size or a fontsize to determine the size of your text')
         text_clip_params['txt'] = text_clip_params['text']
         clip_info = {k: text_clip_params[k] for k in ('txt', 'fontsize', 'font', 'color', 'stroke_width', 'stroke_color', 'size', 'kerning', 'method', 'align') if k in text_clip_params}
+        if asset.get("local_font") and clip_info.get("font"):
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+            data_dir = os.path.join(parent_dir, "data")
+            font_path = os.path.join(data_dir, "fonts", text_clip_params["font"])
+            clip_info["font"] = self._get_font(clip_info["font"])
+        print("==========处理视频文本=============")
+        print(clip_info)
         clip = TextClip(**clip_info)
+        #text_position = asset.get("set_position", ("center", "bottom"))
+        #clip = clip.set_position(tuple(text_position))
 
         return self.process_common_visual_actions(clip, asset['actions'])
 
     def process_audio_asset(self, asset: Dict[str, Any]) -> AudioFileClip:
         clip = AudioFileClip(asset['parameters']['url'])
         return self.process_audio_actions(clip, asset['actions'])
-    
+   
+    def process_captions_asset(self, asset: Dict[str, Any]) -> AudioFileClip:
+        # 字幕
+        print(asset)
+        subtitles_file = asset['parameters']['url']
+        if asset.get("local_font") and asset['parameters'].get("font"):
+            asset['parameters']["font"] = self._get_font(asset['parameters']["font"])
+        clip_info = {k: asset['parameters'][k] for k in ('fontsize', 'font', 'color', 'stroke_width', 'stroke_color', 'size', 'kerning', 'method', 'align') if k in asset['parameters']}
+        text_position = asset.get("set_position", ("center", "bottom"))
+        generator = lambda txt: TextClip(txt.replace(" ", ""), **clip_info)
+        print(clip_info)
+        subtitles = SubtitlesClip(subtitles_file, generator)
+        subtitles = subtitles.set_position(tuple(text_position))
+        print("============加载字幕================")
+        return subtitles
+
+    def _get_font(self, font):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+        data_dir = os.path.join(parent_dir, "data")
+        font_path = os.path.join(data_dir, "fonts", font)
+        return font_path if os.path.exists(font_path) else font
+
     def __normalize_image(self, clip):
         def f(get_frame, t):
             if f.normalized_frame is not None:

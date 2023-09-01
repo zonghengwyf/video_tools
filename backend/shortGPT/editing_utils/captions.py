@@ -1,4 +1,5 @@
 import re
+from shortGPT.subtitles.subtitles_utls import PUNCTUATION_pattern
 
 def getSpeechBlocks(whispered, silence_time=2):
     text_blocks, (st, et, txt) = [], (0,0,"")
@@ -32,22 +33,21 @@ def getTimestampMapping(whisper_analysis):
             index = newIndex
     return locationToTimestamp
 
-
 def splitWordsBySize(words, maxCaptionSize):
-    halfCaptionSize = maxCaptionSize / 2
+    halfCaptionSize = maxCaptionSize / 2.0
     captions = []
     while words:
         caption = words[0]
         words = words[1:]
-        while words and len(caption + ' ' + words[0]) <= maxCaptionSize:
+        while words and len(caption.encode('gbk') + ' '.encode('gbk') + words[0].encode('gbk')) <= maxCaptionSize:
             caption += ' ' + words[0]
             words = words[1:]
-            if len(caption) >= halfCaptionSize and words:
+            if len(caption.encode('gbk')) >= halfCaptionSize and words:
                 break
         captions.append(caption)
     return captions
 
-def getCaptionsWithTime(whisper_analysis, maxCaptionSize=15, considerPunctuation=False):
+def getCaptionsWithTime(whisper_analysis, maxCaptionSize=15, considerPunctuation=True):
     wordLocationToTime = getTimestampMapping(whisper_analysis)
     position = 0
     start_time = 0
@@ -55,12 +55,11 @@ def getCaptionsWithTime(whisper_analysis, maxCaptionSize=15, considerPunctuation
     text = whisper_analysis['text']
     
     if considerPunctuation:
-        sentences = re.split(r'(?<=[.!?]) +', text)
+        sentences = re.split(PUNCTUATION_pattern, text)
         words = [word for sentence in sentences for word in splitWordsBySize(sentence.split(), maxCaptionSize)]
     else:
         words = text.split()
         words = [cleanWord(word) for word in splitWordsBySize(words, maxCaptionSize)]
-    
     for word in words:
         position += len(word) + 1
         end_time = interpolateTimeFromDict(position, wordLocationToTime)
@@ -68,4 +67,33 @@ def getCaptionsWithTime(whisper_analysis, maxCaptionSize=15, considerPunctuation
             CaptionsPairs.append(((start_time, end_time), word))
             start_time = end_time
 
+    return CaptionsPairs
+
+
+def getCaptionsWithTimeChinese(whisper_analysis, maxCaptionSize=15, considerPunctuation=False):
+    CaptionsPairs = []
+    word_index = 0
+
+    words = re.split(PUNCTUATION_pattern, whisper_analysis['text'])
+    for segment in whisper_analysis['segments']:
+        start_time = segment['start']
+        end_time = segment['end']
+        find_word = ""
+        for word in segment['words']:
+            word_text = cleanWord(word["text"])
+            if find_word == "":
+                #start_time = word['start']
+                start_time = CaptionsPairs[-1][0][1] if CaptionsPairs else end_time
+            find_word += word_text
+            if find_word == "" or words[word_index].find(word_text) < 0:
+                word_index += 1
+                continue
+            if find_word == words[word_index]:
+                end_time = word["end"]
+                word_index += 1
+                CaptionsPairs.append(((start_time, end_time), find_word))
+                find_word = ""
+    if CaptionsPairs and len(CaptionsPairs[0]) == 2:
+        CaptionsPairs[0] = ((0, CaptionsPairs[0][0][1]), CaptionsPairs[0][1])
+        CaptionsPairs[-1] = ((CaptionsPairs[-1][0][0], whisper_analysis['segments'][-1]["end"]), CaptionsPairs[-1][1])
     return CaptionsPairs

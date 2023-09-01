@@ -1,4 +1,24 @@
-shortgpt
+ffmpeg
+python-dotenv
+gradio==3.38.0
+openai
+tiktoken
+tinydb
+tinymongo
+proglog
+yt-dlp
+torch
+torchaudio
+### whisper timestamped
+whisper-timestamped
+protobuf==3.20.0
+pillow==9.0.0
+moviepy==1.0.3
+progress
+questionary
+edge-tts
+
+
 bleach==6.0.0
 blinker==1.6.2
 dnspython==2.4.2

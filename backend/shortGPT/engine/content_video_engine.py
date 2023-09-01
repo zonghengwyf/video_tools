@@ -19,7 +19,7 @@ from shortGPT.gpt import gpt_editing, gpt_translate, gpt_yt
 class ContentVideoEngine(AbstractContentEngine):
 
     def __init__(self, voiceModule: VoiceModule, script: str, background_music_name="", id="",
-                 watermark=None, isVerticalFormat=False, language: Language = Language.ENGLISH):
+                 watermark=None, isVerticalFormat=False, language: Language = Language.CHINESE, edge_tts_to_subtitles=False):
         super().__init__(id, "general_video", language, voiceModule)
         if not id:
             if (watermark):
@@ -28,6 +28,7 @@ class ContentVideoEngine(AbstractContentEngine):
                 self._db_background_music_name = background_music_name
             self._db_script = script
             self._db_format_vertical = isVerticalFormat
+            self.edge_tts_to_subtitles = edge_tts_to_subtitles
 
         self.stepDict = {
             1:  self._generateTempAudio,
@@ -52,8 +53,9 @@ class ContentVideoEngine(AbstractContentEngine):
         if (self._db_language != Language.ENGLISH.value):
             self._db_translated_script = gpt_translate.translateContent(script, self._db_language)
             script = self._db_translated_script
+        self._db_captions_path = self.dynamicAssetDir + "temp_captions_path.srt"
         self._db_temp_audio_path = self.voiceModule.generate_voice(
-            script, self.dynamicAssetDir + "temp_audio_path.wav")
+            script, self.dynamicAssetDir + "temp_audio_path.wav", self._db_captions_path)
 
     def _speedUpAudio(self):
         if (self._db_audio_path):
@@ -71,8 +73,12 @@ class ContentVideoEngine(AbstractContentEngine):
         max_len = 15
         if not self._db_format_vertical:
             max_len = 30
-        self._db_timed_captions = captions.getCaptionsWithTime(
-            whisper_analysis, maxCaptionSize=max_len)
+        if self._db_language == Language.CHINESE.value:
+            self._db_timed_captions = captions.getCaptionsWithTimeChinese(whisper_analysis, maxCaptionSize=max_len)
+        else:
+            self._db_timed_captions = captions.getCaptionsWithTime(whisper_analysis, maxCaptionSize=max_len)
+        print("----------------------------------------")
+        print(self._db_timed_captions)
 
     def _generateVideoSearchTerms(self):
         self.verifyParameters(captionsTimed=self._db_timed_captions)
@@ -127,13 +133,18 @@ class ContentVideoEngine(AbstractContentEngine):
                 videoEditor.addEditingStep(EditingStep.ADD_BACKGROUND_VIDEO, {'url': video_url,
                                                                               'set_time_start': t1,
                                                                               'set_time_end': t2})
-            if (self._db_format_vertical):
-                caption_type = EditingStep.ADD_CAPTION_SHORT_ARABIC if self._db_language == Language.ARABIC.value else EditingStep.ADD_CAPTION_SHORT
-            else:
-                caption_type = EditingStep.ADD_CAPTION_LANDSCAPE_ARABIC if self._db_language == Language.ARABIC.value else EditingStep.ADD_CAPTION_LANDSCAPE
+            caption_default = f"ADD_CAPTION_{'SHORT' if not self._db_format_vertical else 'LANDSCAPE'}"
+            caption_language = caption_default + "_" + self._db_language.upper()
+            caption_type = getattr(EditingStep, caption_language if hasattr(EditingStep, caption_language) else caption_default)
+            print(f"===============选择文本配置: {caption_type}==============")
+            print(self._db_captions_path)
+
+            if self.edge_tts_to_subtitles and self._db_captions_path:
+                videoEditor.addEditingStep(caption_type, {'url': self._db_captions_path})
+                self._db_timed_captions = []
 
             for (t1, t2), text in self._db_timed_captions:
-                videoEditor.addEditingStep(caption_type, {'text': text.upper(),
+                videoEditor.addEditingStep(caption_type, {'text': text,
                                                           'set_time_start': t1,
                                                           'set_time_end': t2})
 
