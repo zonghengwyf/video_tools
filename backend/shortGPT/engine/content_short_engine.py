@@ -1,3 +1,4 @@
+import json
 import datetime
 import os
 import re
@@ -42,7 +43,7 @@ class ContentShortEngine(AbstractContentEngine):
             9:  self._prepareBackgroundAssets,
             10: self._prepareCustomAssets,
             11: self._editAndRenderShort,
-            12: self._addYoutubeMetadata
+            12: self._addVideoMetadata
         }
 
     @abstractmethod
@@ -151,19 +152,17 @@ class ContentShortEngine(AbstractContentEngine):
 
         self._db_video_path = outputPath
 
-    def _addYoutubeMetadata(self):
+    def _addVideoMetadata(self):
         if not os.path.exists('videos/'):
             os.makedirs('videos')
         self._db_yt_title, self._db_yt_description = gpt_yt.generate_title_description_dict(self._db_script)
 
         now = datetime.datetime.now()
         date_str = now.strftime("%Y-%m-%d_%H-%M-%S")
-        newFileName = f"videos/{date_str} - " + \
-            re.sub(r"[^a-zA-Z0-9 '\n\.]", '', self._db_yt_title)
+        newFileName = f"videos/{date_str}_"+self._db_yt_title.replace(" ",""))
 
         shutil.move(self._db_video_path, newFileName+".mp4")
-        with open(newFileName+".txt", "w", encoding="utf-8") as f:
-            f.write(
-                f"---Youtube title---\n{self._db_yt_title}\n---Youtube description---\n{self._db_yt_description}")
+        with open(newFileName+".json", "w", encoding="utf-8") as f:
+            f.write(json.dumps({"title": self._db_yt_title, "description": self._db_yt_description}))
         self._db_video_path = newFileName+".mp4"
         self._db_ready_to_upload = True

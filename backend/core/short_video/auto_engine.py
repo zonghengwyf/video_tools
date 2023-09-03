@@ -22,7 +22,7 @@ video_language = Language.CHINESE
 #video_language = Language.SPANISH
 
 # Configure the Voice Module
-voice_name = EDGE_TTS_VOICENAME_MAPPING[video_language]['female']
+voice_name = EDGE_TTS_VOICENAME_MAPPING[video_language]['male']
 voice_module = EdgeTTSVoiceModule(voice_name)
 
 # Prepare the script

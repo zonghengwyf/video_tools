@@ -18,6 +18,9 @@ apt-get install imagemagick -y
 apt-get install ffmpeg -y
 sed -i '/<policy domain="path" rights="none" pattern="@\*"/d' /etc/ImageMagick-6/policy.xml
 
+python -m playwright install
 
+cd $(dirname $0); pwd
+pip install -r requirements.txt
 
-pip install --no-cache-dir --upgrade shortgpt -i https://mirrors.aliyun.com/pypi/simple/
+#pip install --no-cache-dir --upgrade shortgpt -i https://mirrors.aliyun.com/pypi/simple/
